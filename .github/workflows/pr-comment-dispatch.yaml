@@ -61,7 +61,6 @@ jobs:
               number: prNumber,
               testType
             };
-          result-encoding: string
 
       - name: Trigger evaluate.yaml on main
         id: dispatch
