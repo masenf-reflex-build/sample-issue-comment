@@ -1,0 +1,104 @@
+name: Comment Trigger Handler
+description: >
+  Adds reaction to comment, runs script, updates reaction & comment on success/failure with links.
+
+inputs:
+  script:
+    description: 'JavaScript code to run using actions/github-script@v7'
+    required: true
+  loading_reaction:
+    description: 'Reaction to add while running'
+    required: false
+    default: 'eyes'
+  success_reaction:
+    description: 'Reaction to add on success'
+    required: false
+    default: '+1'
+  failure_reaction:
+    description: 'Reaction to add on failure'
+    required: false
+    default: 'confused'
+
+runs:
+  using: "composite"
+  steps:
+    - id: add_loading_reaction
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const reaction = '${{ inputs.loading_reaction }}';
+          const commentId = context.payload.comment.id;
+          const res = await github.rest.reactions.createForIssueComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: commentId,
+            content: reaction
+          });
+          return res.data.id;
+        result-encoding: string
+
+    - id: run_user_script
+      uses: actions/github-script@v7
+      with:
+        script: ${{ inputs.script }}
+
+    - id: remove_loading_reaction
+      if: ${{ always() }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const reactionId = ${{ steps.add_loading_reaction.outputs.result }};
+          await github.rest.reactions.deleteForIssueComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: context.payload.comment.id,
+            reaction_id: reactionId
+          });
+
+    - id: update_comment_success
+      if: ${{ success() }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const commentId = context.payload.comment.id;
+          const originalBody = context.payload.comment.body;
+          const runUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+          await github.rest.reactions.createForIssueComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: commentId,
+            content: '${{ inputs.success_reaction }}'
+          });
+
+          const newBody = `${originalBody}\n\n✅ Successfully triggered this workflow run [here](${runUrl}).`;
+          await github.rest.issues.updateComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: commentId,
+            body: newBody
+          });
+
+    - id: update_comment_failure
+      if: ${{ failure() }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const commentId = context.payload.comment.id;
+          const originalBody = context.payload.comment.body;
+          const runUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+          await github.rest.reactions.createForIssueComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: commentId,
+            content: '${{ inputs.failure_reaction }}'
+          });
+
+          const newBody = `${originalBody}\n\n❌ Failed to run this workflow. See details [here](${runUrl}).`;
+          await github.rest.issues.updateComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: commentId,
+            body: newBody
+          });
