@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
   contents: read
   actions: write
-  issues: write  # needed for posting comments
+  issues: write  # needed for posting comments and editing comments
 
 jobs:
   trigger-evaluate:
@@ -70,20 +70,26 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { branch, number, testType } = JSON.parse('${{ steps.pr.outputs.result }}');
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'evaluate.yaml',
-              ref: 'main',
-              inputs: {
-                compare_branch: branch,
-                pr_number: String(number),
-                test_type: testType
-              }
-            });
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'evaluate.yaml',
+                ref: 'main',
+                inputs: {
+                  compare_branch: branch,
+                  pr_number: String(number),
+                  test_type: testType
+                }
+              });
+              return "success";
+            } catch (error) {
+              return `failure: ${error.message}`;
+            }
+          result-encoding: string
 
-      - name: Replace 👀 with 👍
-        if: success()
+      - name: Replace 👀 with 👍 on successful dispatch
+        if: steps.dispatch.outputs.result == 'success'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -101,27 +107,41 @@ jobs:
               content: '+1'
             });
 
-      - name: Replace 👀 with 😕 and comment failure
-        if: failure()
+      - name: Replace 👀 with 😕 and edit comment on dispatch failure
+        if: startsWith(steps.dispatch.outputs.result, 'failure')
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const commentId = context.payload.comment.id;
+            const originalBody = context.payload.comment.body;
+            const errorMsg = `${{ steps.dispatch.outputs.result }}`;
+
+            // Construct the current workflow run URL for easy debugging
+            const runUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            // Remove 👀 reaction
             await github.rest.reactions.deleteForIssueComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              comment_id: context.payload.comment.id,
+              comment_id: commentId,
               reaction_id: ${{ steps.eyes.outputs.result }}
             });
+
+            // Add confused reaction
             await github.rest.reactions.createForIssueComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              comment_id: context.payload.comment.id,
+              comment_id: commentId,
               content: 'confused'
             });
-            await github.rest.issues.createComment({
+
+            // Append failure message with link to this workflow run
+            const newBody = `${originalBody}\n\n❌ Failed to trigger **evaluate** workflow: ${errorMsg}\n\nYou can view details of this run [here](${runUrl}).`;
+
+            await github.rest.issues.updateComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `❌ Failed to trigger **evaluate** workflow for this PR. Please check the trigger logs for details.`
+              comment_id: commentId,
+              body: newBody
             });
