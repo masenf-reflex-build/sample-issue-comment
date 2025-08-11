@@ -59,9 +59,17 @@ jobs:
 
             console.log(`Commenting on PR #${prNumber}...`);
 
+            let body = "it worked\n";
+
+            for (const [key, value] of Object.entries(process.env)) {
+              if (key.startsWith('INPUT_')) {
+                body += (key + ': ' + value + '\n');
+              }
+            }
+
             await github.rest.issues.createComment({
               issue_number: prNumber,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "it worked" + JSON.stringify(`${{ github.event.inputs }}`)
+              body: body
             });
