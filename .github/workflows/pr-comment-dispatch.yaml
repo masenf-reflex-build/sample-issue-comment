@@ -69,8 +69,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { branch, number, testType } = JSON.parse('${{ steps.pr.outputs.result }}');
             try {
+              const { branch, number, testType } = JSON.parse('${{ steps.pr.outputs.result }}');
               await github.rest.actions.createWorkflowDispatch({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
