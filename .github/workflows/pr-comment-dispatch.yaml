@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Handle /evaluate comment
-        uses: ./.github/actions/comment-trigger
+        uses: masenf/comment-trigger-feedback@main
         with:
           script: |
             const body = context.payload.comment.body.trim();
