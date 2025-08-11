@@ -59,13 +59,7 @@ jobs:
 
             console.log(`Commenting on PR #${prNumber}...`);
 
-            let body = "it worked\n";
-
-            for (const [key, value] of Object.entries(process.env)) {
-              if (key.startsWith('INPUT_')) {
-                body += (key + ': ' + value + '\n');
-              }
-            }
+            let body = "it worked\n${{ github.event.inputs.datasets }}\n\n${{ github.event.inputs.compare_branch }}\n\n${{ github.event.inputs.evaluators }}\n\n${{ github.event.inputs.num_repetitions }}\n\n${{ github.event.inputs.test_type }}\n\n";
 
             await github.rest.issues.createComment({
               issue_number: prNumber,
