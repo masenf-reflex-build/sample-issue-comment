@@ -80,23 +80,42 @@ jobs:
             });
             return "success";
 
-      - name: Replace 👀 with 👍 on successful dispatch
+      - name: Replace 👀 with 👍 and update comment on successful dispatch
         if: success()
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const commentId = context.payload.comment.id;
+            const originalBody = context.payload.comment.body;
+
+            // Construct the current workflow run URL
+            const runUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            // Remove 👀 reaction
             await github.rest.reactions.deleteForIssueComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              comment_id: context.payload.comment.id,
+              comment_id: commentId,
               reaction_id: ${{ steps.eyes.outputs.result }}
             });
+
+            // Add 👍 reaction
             await github.rest.reactions.createForIssueComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              comment_id: context.payload.comment.id,
+              comment_id: commentId,
               content: '+1'
+            });
+
+            // Append success message with link to this workflow run
+            const newBody = `${originalBody}\n\n✅ Successfully triggered [**evaluate** workflow](${runUrl}).`;
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: commentId,
+              body: newBody
             });
 
       - name: Replace 👀 with 😕 and edit comment on dispatch failure
