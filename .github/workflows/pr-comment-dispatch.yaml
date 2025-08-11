@@ -7,7 +7,7 @@ on:
     types: []  # included so the workflow runs in trusted context for forks
 
 permissions:
-  pull-requests: read
+  pull-requests: write
   contents: read
   actions: write
   issues: write  # needed for posting comments
